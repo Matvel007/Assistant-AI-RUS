@@ -91,13 +91,13 @@
 **🖼️ Скриншоты**
 
 <div align="center">
-  <img src="https://github.com/user-attachments/assets/c877177a-17dd-4295-afd4-49422d0fa67d" width="70%" alt="Главное окно"><br>
+  <img src="https://github.com/user-attachments/assets/9cf1eaf2-2c0f-4a5b-8173-5dc709494acf" width="70%" alt="Главное окно ассистента"><br>
   <em>Главное окно ассистента</em><br><br>
   
-  <img src="https://github.com/user-attachments/assets/8e3c19c7-5e4d-49b1-8b36-5fffce0abfe7" width="70%" alt="Окно настроек"><br>
+  <img src="https://github.com/user-attachments/assets/b7158d2e-17b1-47ad-9c3e-02391d8e1a1d" width="70%" alt="Окно настроек"><br>
   <em>Окно настроек</em><br><br>
   
-  <img src="https://github.com/user-attachments/assets/2c27f341-1b9d-42f3-bec5-1945353f66b8" width="70%" alt="Окно памяти"><br>
+  <img src="https://github.com/user-attachments/assets/46291da6-bada-43e4-8d70-e1ddc0b01908" width="70%" alt="Окно управления памятью"><br>
   <em>Окно управления памятью</em>
 </div>
 
