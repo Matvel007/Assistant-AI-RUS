@@ -1,0 +1,37 @@
+[
+  {
+    "role": "metadata",
+    "timestamp": "2026-02-21T19:41:16"
+  },
+  {
+    "role": "human",
+    "timestamp": "2026-02-21T19:41:16",
+    "content": "привет",
+    "name": "Human"
+  },
+  {
+    "role": "ai",
+    "timestamp": "2026-02-21T19:41:19",
+    "content": "",
+    "name": "Mao",
+    "avatar": "mao.png"
+  },
+  {
+    "role": "system",
+    "timestamp": "2026-02-21T19:41:19",
+    "content": "[Interrupted by user]"
+  },
+  {
+    "role": "human",
+    "timestamp": "2026-02-21T19:41:19",
+    "content": "привет",
+    "name": "Human"
+  },
+  {
+    "role": "ai",
+    "timestamp": "2026-02-21T19:41:41",
+    "content": "Привет! Ну что,снова проверяешь, как я работаю?Или просто поздороваться зашёл?",
+    "name": "Mao",
+    "avatar": "mao.png"
+  }
+]

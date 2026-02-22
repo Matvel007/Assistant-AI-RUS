@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
 """
 Голосовой ассистент с настраиваемым именем.
@@ -13,15 +15,19 @@ import time
 import asyncio
 import threading
 import queue
+import torch
+import silero_vad
 import re
+import onnx_asr
+import onnxruntime
 import subprocess
+import warnings
 from pathlib import Path
 from datetime import datetime, timedelta
 import tkinter as tk
 from tkinter import scrolledtext, messagebox
 import ttkbootstrap as ttk
 from ttkbootstrap.constants import *
-
 # ------------------------------------------------------------
 #  Глобальные импорты зависимостей
 # ------------------------------------------------------------
@@ -35,12 +41,11 @@ try:
     from PIL import Image, ImageDraw
     import pyaudio
     import numpy as np
-    from vosk import Model, KaldiRecognizer
     from openai import OpenAI
 except ImportError as e:
     print(f"❌ Ошибка импорта: {e}")
     print("Пожалуйста, установите все зависимости командой:")
-    print("  pip install edge-tts chromadb sentence-transformers requests pyyaml pystray pillow tavily-python pyaudio vosk ttkbootstrap openai")
+    print("  pip install edge-tts chromadb sentence-transformers requests pyyaml pystray pillow tavily-python pyaudio ttkbootstrap openai")
     sys.exit(1)
 
 # Для Silero TTS
@@ -61,7 +66,6 @@ except ImportError:
     print("⚠️ num2words не установлен. Числа могут не озвучиваться. Установите: pip install num2words")
 
 CONFIG_FILE = "config.yaml"
-VOSK_MODEL_PATH = "./library/vosk-model-small-ru"
 
 # ------------------------------------------------------------
 #  Функции очистки ответов и преобразования чисел
@@ -230,9 +234,10 @@ class SileroTTSEngine:
         self.language = config.get('silero_language', 'ru')
         self.speaker = config.get('silero_speaker', 'v5_ru')
         self.device = config.get('silero_device', 'cuda')
-        self.sample_rate = 48000  # можно 24000 или 8000
+        self.sample_rate = 48000
         self.model = None
         self.ready = False
+        self.max_chars = 800  # немного меньше 1000 для запаса
 
         if not SILERO_AVAILABLE:
             print("❌ Silero TTS не установлен. Установите: pip install silero torch")
@@ -244,8 +249,6 @@ class SileroTTSEngine:
         try:
             print(f"🔄 Загрузка Silero TTS (speaker: {self.speaker})...")
             from silero import silero_tts
-
-            # Определяем устройство
             if self.device == 'cuda' and torch.cuda.is_available():
                 device = torch.device('cuda')
                 print("✅ CUDA доступна, загружаем на GPU")
@@ -255,7 +258,6 @@ class SileroTTSEngine:
                     print("⚠️ CUDA недоступна, загружаем на CPU")
                 else:
                     print("Загружаем на CPU")
-
             self.model, self.example_text = silero_tts(
                 language=self.language,
                 speaker=self.speaker,
@@ -267,6 +269,31 @@ class SileroTTSEngine:
             print(f"❌ Ошибка загрузки Silero TTS: {e}")
             self.ready = False
 
+    def _split_text(self, text):
+        """Разбивает длинный текст на части по предложениям, не превышая max_chars."""
+        sentences = re.split(r'(?<=[.!?…])\s+', text)
+        parts = []
+        current = ""
+        for sent in sentences:
+            if len(current) + len(sent) <= self.max_chars:
+                current += sent + " "
+            else:
+                if current:
+                    parts.append(current.strip())
+                current = sent + " "
+        if current:
+            parts.append(current.strip())
+        # Если предложение длиннее max_chars (редко) – принудительно режем
+        final_parts = []
+        for p in parts:
+            if len(p) <= self.max_chars:
+                final_parts.append(p)
+            else:
+                # режем по символам
+                for i in range(0, len(p), self.max_chars):
+                    final_parts.append(p[i:i+self.max_chars])
+        return final_parts
+
     def speak(self, text, callback=None):
         if not self.ready:
             print("⏳ Модель Silero ещё не загружена, пропускаю озвучивание.")
@@ -274,65 +301,59 @@ class SileroTTSEngine:
                 callback()
             return
 
+        parts = self._split_text(text)
+        if len(parts) > 1:
+            print(f"🔊 Текст слишком длинный, разбит на {len(parts)} частей.")
+
         def _run():
-            try:
-                import soundfile as sf
-                import tempfile
-                import torch
-                import numpy as np
+            for part in parts:
+                try:
+                    import soundfile as sf
+                    import tempfile
+                    import torch
+                    import numpy as np
 
-                # Генерируем аудио – результат может быть тензором, списком тензоров или numpy массивом
-                audio_output = self.model.apply_tts(text)  # без именованного аргумента
+                    audio_output = self.model.apply_tts(part)
 
-                # Преобразуем в numpy массив
-                if isinstance(audio_output, torch.Tensor):
-                    audio_np = audio_output.cpu().numpy()
-                elif isinstance(audio_output, list):
-                    # Если список содержит один тензор – извлекаем его
-                    if len(audio_output) == 1 and isinstance(audio_output[0], torch.Tensor):
-                        audio_np = audio_output[0].cpu().numpy()
-                    elif len(audio_output) == 1 and isinstance(audio_output[0], np.ndarray):
-                        audio_np = audio_output[0]
+                    if isinstance(audio_output, torch.Tensor):
+                        audio_np = audio_output.cpu().numpy()
+                    elif isinstance(audio_output, list):
+                        if len(audio_output) == 1 and isinstance(audio_output[0], torch.Tensor):
+                            audio_np = audio_output[0].cpu().numpy()
+                        elif len(audio_output) == 1 and isinstance(audio_output[0], np.ndarray):
+                            audio_np = audio_output[0]
+                        else:
+                            audio_np = np.array(audio_output)
+                    elif isinstance(audio_output, np.ndarray):
+                        audio_np = audio_output
                     else:
-                        # Пробуем преобразовать весь список в массив (может быть многоканальным)
-                        audio_np = np.array(audio_output)
-                elif isinstance(audio_output, np.ndarray):
-                    audio_np = audio_output
-                else:
-                    raise TypeError(f"Неизвестный тип аудиовыхода: {type(audio_output)}")
+                        raise TypeError(f"Неизвестный тип аудиовыхода: {type(audio_output)}")
 
-                # Убираем лишние измерения и приводим к float32
-                audio_np = np.squeeze(audio_np)
-                if audio_np.dtype != np.float32:
-                    audio_np = audio_np.astype(np.float32)
+                    audio_np = np.squeeze(audio_np).astype(np.float32)
 
-                # Сохраняем во временный WAV-файл
-                with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as f:
-                    temp_filename = f.name
-                sf.write(temp_filename, audio_np, self.sample_rate)
+                    with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as f:
+                        temp_filename = f.name
+                    sf.write(temp_filename, audio_np, self.sample_rate)
 
-                # Воспроизводим через pygame (если есть) или системный плеер
-                if importlib.util.find_spec('pygame') is not None:
-                    import pygame
-                    pygame.mixer.init()
-                    pygame.mixer.music.load(temp_filename)
-                    pygame.mixer.music.play()
-                    while pygame.mixer.music.get_busy():
-                        time.sleep(0.1)
-                    pygame.mixer.music.unload()
-                else:
-                    if sys.platform == "win32":
-                        os.startfile(temp_filename)
+                    if importlib.util.find_spec('pygame') is not None:
+                        import pygame
+                        pygame.mixer.init()
+                        pygame.mixer.music.load(temp_filename)
+                        pygame.mixer.music.play()
+                        while pygame.mixer.music.get_busy():
+                            time.sleep(0.1)
+                        pygame.mixer.music.unload()
                     else:
-                        subprocess.call(["aplay", temp_filename])
+                        if sys.platform == "win32":
+                            os.startfile(temp_filename)
+                        else:
+                            subprocess.call(["aplay", temp_filename])
 
-                # Удаляем временный файл
-                os.unlink(temp_filename)
-            except Exception as e:
-                print(f"❌ Ошибка при озвучивании Silero TTS: {e}")
-            finally:
-                if callback:
-                    callback()
+                    os.unlink(temp_filename)
+                except Exception as e:
+                    print(f"❌ Ошибка при озвучивании части Silero TTS: {e}")
+            if callback:
+                callback()
 
         threading.Thread(target=_run, daemon=True).start()
 
@@ -352,7 +373,14 @@ class VectorMemory:
     def _get_embedder(self):
         if self._embedder is None:
             from sentence_transformers import SentenceTransformer
-            self._embedder = SentenceTransformer(self.embed_model_name, trust_remote_code=True)
+            import torch
+            device = 'cuda' if torch.cuda.is_available() else 'cpu'
+            self._embedder = SentenceTransformer(
+                self.embed_model_name,
+                device=device,
+                trust_remote_code=True
+            )
+            print(f"✅ Embedder загружен на {device}")
         return self._embedder
 
     def _get_client(self):
@@ -636,175 +664,75 @@ class DeepSeekClient:
             return None
         return response.choices[0].message.content
 
+#  Класс для записи аудио с микрофона
 # ------------------------------------------------------------
-#  Локальный голосовой слушатель (Vosk) – без изменений
-# ------------------------------------------------------------
-class VoiceListener:
-    def __init__(self, assistant, enabled=True):
-        self.assistant = assistant
-        self.enabled = enabled
-        self.vosk_model_path = VOSK_MODEL_PATH
+class VADProcessor:
+    def __init__(self):
+        self.vad = VadIterator()
+        self.audio_buffer = []
+        self.is_speech = False
+        self.speech_buffer = bytearray()
 
-        self.listening_for_command = False
-        self.command_buffer = []
-        self.command_timer = None
-
-        self._vosk_model = None
-        self._recognizer = None
-        self._p = None
-        self._stream = None
-
-        self.last_wake_time = 0
-        self.wake_cooldown = 2.0
-
-        # Получаем имя ассистента из конфига (по умолчанию "Ассистент")
-        self.assistant_name = self.assistant.config.get('system', {}).get('assistant_name', 'Ассистент').lower()
-
-        if not self.enabled:
-            print("🎤 Голосовой ввод отключён")
-            return
-
-        if not os.path.exists(self.vosk_model_path):
-            print(f"❌ Модель Vosk не найдена: {self.vosk_model_path}")
-            self.enabled = False
-            return
-
-        self._init_audio()
-        threading.Thread(target=self._listen_loop, daemon=True).start()
-
-    def _init_audio(self):
-        if self._p is None:
-            import pyaudio
-            self._p = pyaudio.PyAudio()
-            self._stream = self._p.open(
-                rate=16000,
-                channels=1,
-                format=pyaudio.paInt16,
-                input=True,
-                frames_per_buffer=8000
-            )
-
-    def _ensure_vosk_loaded(self):
-        if self._vosk_model is None and self.enabled:
-            from vosk import Model, KaldiRecognizer
-            self._vosk_model = Model(self.vosk_model_path)
-
-            # Генерируем грамматику на основе имени ассистента
-            name = self.assistant_name
-            wake_phrases = [
-                name,
-                f"привет {name}",
-                f"эй {name}",
-                f"слушай {name}"
-            ]
-            grammar_json = json.dumps(wake_phrases, ensure_ascii=False)
-            self._recognizer = KaldiRecognizer(self._vosk_model, 16000, grammar_json)
-            self._recognizer.SetWords(False)
-            print(f"🎤 Модель Vosk загружена с грамматикой для имени '{name}'")
-        return self._vosk_model is not None
-
-    def _reset_command_state(self, send_if_buffer=True):
-        if send_if_buffer and self.command_buffer and self.listening_for_command:
-            full_command = " ".join(self.command_buffer).strip()
-            if full_command:
-                print(f"🎤 Команда после wake word: {full_command}")
-                self.assistant.process_input(full_command)
-        self.command_buffer = []
-        self.listening_for_command = False
-        if self.command_timer:
-            self.command_timer.cancel()
-            self.command_timer = None
-
-    def _start_command_listening(self):
-        self.listening_for_command = True
-        self.command_buffer = []
-        if self.command_timer:
-            self.command_timer.cancel()
-        self.command_timer = threading.Timer(5.0, lambda: self._reset_command_state(True))
-        self.command_timer.daemon = True
-        self.command_timer.start()
-        print("🎤 Слушаю команду...")
-
-    def _listen_loop(self):
-        while True:
-            if not self.enabled:
-                time.sleep(0.1)
-                continue
-
-            if not self._ensure_vosk_loaded():
-                time.sleep(1)
-                continue
-
-            data = self._stream.read(8000, exception_on_overflow=False)
-            if self._recognizer.AcceptWaveform(data):
-                result = json.loads(self._recognizer.Result())
-                text = result.get("text", "").strip().lower()
-                if not text:
-                    continue
-
-                print(f"🎤 Распознано: {text}")
-
-                # Строим список wake-фраз на основе имени
-                name = self.assistant_name
-                wake_phrases = (
-                    name,
-                    f"привет {name}",
-                    f"эй {name}",
-                    f"слушай {name}"
-                )
-                is_wake = any(text.startswith(w) for w in wake_phrases)
-
-                now = time.time()
-                if is_wake and (now - self.last_wake_time < self.wake_cooldown):
-                    print(f"🎤 Игнорирую повторный wake-word (прошло {now - self.last_wake_time:.1f} сек)")
-                    continue
-
-                if is_wake:
-                    self.last_wake_time = now
-                    if self.listening_for_command:
-                        self._reset_command_state(False)
-                    self.assistant.stop_speaking()
-                    self._start_command_listening()
-
-                    rest = text
-                    for w in wake_phrases:
-                        if rest.startswith(w):
-                            rest = rest[len(w):].strip()
-                            break
-                    if rest:
-                        self.command_buffer.append(rest)
-                        print(f"🎤 Добавлено в буфер: {rest}")
-
-                elif self.listening_for_command:
-                    self.command_buffer.append(text)
-                    print(f"🎤 Добавлено в буфер: {text}")
-
-    def set_enabled(self, enabled):
-        self.enabled = enabled
-        status = "включён" if enabled else "выключен"
-        print(f"🎤 Голосовой ввод {status}")
-        if not enabled:
-            self._reset_command_state(False)
-
-    def toggle(self):
-        self.set_enabled(not self.enabled)
-
-    def stop(self):
-        self.enabled = False
-        self._reset_command_state(False)
-        if self._stream:
-            self._stream.stop_stream()
-            self._stream.close()
-        if self._p:
-            self._p.terminate()
-        print("🎤 Vosk слушатель остановлен")
+    def process_audio(self, audio_bytes):
+        # Передаём байты в VAD
+        speech_probs = self.vad.process_chunk(audio_bytes)
+        if speech_probs > 0.5: # Если это речь
+            if not self.is_speech:
+                self.is_speech = True
+                self.speech_buffer = bytearray()
+            self.speech_buffer.extend(audio_bytes)
+        else:
+            if self.is_speech:
+                # Речь закончилась, отправляем буфер на распознавание
+                self.is_speech = False
+                # Здесь твой вызов self.asr_recognizer.recognize(bytes(self.speech_buffer))
+                # и дальше отправка сообщения
+                self.speech_buffer = bytearray()
 
 # ------------------------------------------------------------
-#  Класс Assistant (основной, с улучшенной RAG)
+#  Класс распознавания речи через GigaAM (onnx-asr)
+# ------------------------------------------------------------
+class GigaAMRecognizer:
+    def __init__(self, model_name='gigaam-v3-e2e-ctc', device='cuda'):
+        self.model_name = model_name
+        self.device = device
+        self.model = None
+        self.ready = False
+        threading.Thread(target=self._load_model, daemon=True).start()
+
+    def _load_model(self):
+        try:
+            import onnx_asr
+            self.model = onnx_asr.load_model(self.model_name)
+            self.ready = True
+            print(f"✅ GigaAM модель '{self.model_name}' загружена (device: {self.device})")
+        except Exception as e:
+            print(f"❌ Ошибка загрузки GigaAM: {e}")
+
+    def recognize(self, audio_bytes, sample_rate=16000):
+        if not self.ready:
+            return None
+        import tempfile, os, soundfile as sf, numpy as np
+        audio_np = np.frombuffer(audio_bytes, dtype=np.int16).astype(np.float32) / 32768.0
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as f:
+            temp_filename = f.name
+        try:
+            sf.write(temp_filename, audio_np, sample_rate)
+            result = self.model.recognize(temp_filename)
+            return result.strip() if result else None
+        except Exception as e:
+            print(f"❌ Ошибка распознавания: {e}")
+            return None
+        finally:
+            os.unlink(temp_filename)
+
+# ------------------------------------------------------------
+#  Класс Assistant (основной, с улучшенной RAG) – добавлен api_mode
 # ------------------------------------------------------------
 class Assistant:
-    def __init__(self, config):
+    def __init__(self, config, api_mode=False):
         self.config = config
+        self.api_mode = api_mode
         self.memory = VectorMemory(
             config['memory']['vector_store_path'],
             config['memory']['collection_name'],
@@ -812,16 +740,21 @@ class Assistant:
         )
         self.memory.cleanup_old_memory(days=30)
 
-        tts_config = config['tts']
-        if tts_config.get('engine') == 'edge':
-            self.tts = EdgeTTSEngine(tts_config)
-        elif tts_config.get('engine') == 'pyttsx3':
-            self.tts = Pyttsx3Wrapper(tts_config)
-        elif tts_config.get('engine') == 'silero':
-            self.tts = SileroTTSEngine(tts_config)
+        # В API-режиме TTS не создаём
+        if not api_mode:
+            tts_config = config['tts']
+            if tts_config.get('engine') == 'edge':
+                self.tts = EdgeTTSEngine(tts_config)
+            elif tts_config.get('engine') == 'pyttsx3':
+                self.tts = Pyttsx3Wrapper(tts_config)
+            elif tts_config.get('engine') == 'silero':
+                self.tts = SileroTTSEngine(tts_config)
+            else:
+                self.tts = None
+                print("⚠️ Неизвестный TTS-движок, голосовой вывод отключён.")
         else:
             self.tts = None
-            print("⚠️ Неизвестный TTS-движок, голосовой вывод отключён.")
+            print("ℹ️ API-режим: TTS отключён.")
 
         self.ignore_phrases = config.get('ignore_phrases', [])
         self.memory_keywords = ["запомни", "запомни, что", "важно:", "запиши", "сохрани"]
@@ -868,7 +801,6 @@ class Assistant:
         self.recent_messages = []
         self.message_counter = 0
 
-        self.voice_listener = None
         self.last_search_query = None
         self.profile_update_counter = 0
 
@@ -1100,38 +1032,133 @@ class Assistant:
         print(f"🤖 {self.config.get('system', {}).get('assistant_name', 'Ассистент')}: {final_response_clean} ({elapsed:.2f} сек)")
         print(f"🔊 Текст для TTS (после обработки): {final_response_tts}")
 
-        if final_response_tts and self.tts and not self._is_speaking:
-            if self.voice_listener:
-                self.voice_listener.set_enabled(False)
+        # В API-режиме пропускаем озвучивание
+        if not self.api_mode and final_response_tts and self.tts and not self._is_speaking:
             self._is_speaking = True
             self.tts.speak(final_response_tts, callback=self._on_speak_finished)
 
         self.update_status("Готов к работе")
 
+        # Фоновая обработка (память)
         self._process_after_response(user_text, final_response_clean)
 
         return final_response_clean, elapsed
 
     def _on_speak_finished(self):
         self._is_speaking = False
-        self._delayed_enable_microphone()
-
-    def _delayed_enable_microphone(self):
-        def enable():
-            time.sleep(0.7)
-            if self.voice_listener:
-                self.voice_listener.set_enabled(True)
-        threading.Thread(target=enable, daemon=True).start()
+        # Микрофон не трогаем – он управляется кнопкой в GUI
 
     def stop_speaking(self):
         if self.tts and hasattr(self.tts, 'stop'):
             self.tts.stop()
         self._is_speaking = False
-        if self.voice_listener:
-            self.voice_listener.set_enabled(True)
+#  Главный GUI с отложенной загрузкой – финальная версия с silero-vad
+# ------------------------------------------------------------
+#  Простой аудио-рекордер с чанками по 32 мс (512 сэмплов для 16 кГц)
+# ------------------------------------------------------------
+class SimpleAudioRecorder:
+    def __init__(self, sample_rate=16000, chunk_duration_ms=32):
+        self.sample_rate = sample_rate
+        self.chunk_bytes = int(sample_rate * 2 * chunk_duration_ms / 1000)  # 16-bit
+        self.is_recording = False
+        self.p = pyaudio.PyAudio()
+        self.stream = None
+
+    def start(self):
+        if self.is_recording:
+            return
+        self.is_recording = True
+        self.stream = self.p.open(
+            format=pyaudio.paInt16,
+            channels=1,
+            rate=self.sample_rate,
+            input=True,
+            frames_per_buffer=self.chunk_bytes,
+            stream_callback=None
+        )
+        print("🎤 Запись начата...")
+
+    def read_chunk(self):
+        if not self.is_recording:
+            return None
+        try:
+            data = self.stream.read(self.chunk_bytes, exception_on_overflow=False)
+            return data
+        except Exception as e:
+            print(f"❌ Ошибка чтения аудио: {e}")
+            return None
+
+    def stop(self):
+        self.is_recording = False
+        if self.stream:
+            self.stream.stop_stream()
+            self.stream.close()
+            self.stream = None
+        self.p.terminate()
+        print("🎤 Запись остановлена")
+
 
 # ------------------------------------------------------------
-#  Главный GUI с отложенной загрузкой
+#  Главный GUI с отложенной загрузкой – финальная версия с silero-vad
+# ------------------------------------------------------------
+# ------------------------------------------------------------
+#  Простой аудио-рекордер с чанками по 32 мс (512 сэмплов для 16 кГц)
+# ------------------------------------------------------------
+class SimpleAudioRecorder:
+    def __init__(self, sample_rate=16000, chunk_duration_ms=32):
+        self.sample_rate = sample_rate
+        self.chunk_bytes = int(sample_rate * 2 * chunk_duration_ms / 1000)  # 16-bit
+        self.is_recording = False
+        self.p = pyaudio.PyAudio()
+        self.stream = None
+
+    def start(self):
+        if self.is_recording:
+            return
+        self.is_recording = True
+        try:
+            self.stream = self.p.open(
+                format=pyaudio.paInt16,
+                channels=1,
+                rate=self.sample_rate,
+                input=True,
+                frames_per_buffer=self.chunk_bytes,
+                stream_callback=None
+            )
+            print("🎤 Запись начата...")
+        except Exception as e:
+            print(f"❌ Ошибка открытия микрофона: {e}")
+            self.is_recording = False
+            raise
+
+    def read_chunk(self):
+        if not self.is_recording:
+            return None
+        try:
+            data = self.stream.read(self.chunk_bytes, exception_on_overflow=False)
+            return data
+        except Exception as e:
+            print(f"❌ Ошибка чтения аудио: {e}")
+            return None
+
+    def stop(self):
+        self.is_recording = False
+        if self.stream:
+            try:
+                self.stream.stop_stream()
+                self.stream.close()
+            except:
+                pass
+            self.stream = None
+        print("🎤 Запись остановлена")
+
+    def terminate(self):
+        self.stop()
+        self.p.terminate()
+
+
+# ------------------------------------------------------------
+#  Главный GUI с отложенной загрузкой – финальная версия с silero-vad
 # ------------------------------------------------------------
 class AssistantGUI:
     def __init__(self, assistant):
@@ -1156,39 +1183,33 @@ class AssistantGUI:
         ttk.Button(top_frame, text="📚 Память", command=self.open_memory, bootstyle="info").pack(side=tk.LEFT, padx=5)
         ttk.Button(top_frame, text="⚙️ Настройки", command=self.open_settings, bootstyle="secondary").pack(side=tk.LEFT, padx=5)
 
-        self.mic_enabled = tk.BooleanVar(value=True)
         self.mic_button = ttk.Button(top_frame, text="🎤 Вкл", bootstyle="success", width=10, command=self.toggle_microphone)
         self.mic_button.pack(side=tk.RIGHT, padx=10)
-
-        self.chat_frame = ttk.Frame(self.root)
-        self.chat_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-
-        self.history = scrolledtext.ScrolledText(self.chat_frame, state='disabled', height=20, wrap=tk.WORD)
-        self.history.pack(fill=tk.BOTH, expand=True)
-
-        self.all_history_lines = []
 
         self.search_var = tk.StringVar()
         self.search_entry = ttk.Entry(top_frame, textvariable=self.search_var, width=25)
         self.search_entry.pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True)
         self.search_entry.insert(0, "🔍 Поиск...")
-
         self.search_var.trace_add("write", lambda *args: self._filter_history())
-
         self.search_entry.bind("<FocusIn>", lambda e: self.search_entry.delete(0, tk.END) if self.search_entry.get() == "🔍 Поиск..." else None)
         self.search_entry.bind("<FocusOut>", lambda e: self.search_entry.insert(0, "🔍 Поиск...") if not self.search_entry.get() else None)
 
         self.clear_search_btn = ttk.Button(top_frame, text="✖", command=self._clear_search, width=3, bootstyle="secondary")
         self.clear_search_btn.pack(side=tk.LEFT, padx=5)
 
+        self.chat_frame = ttk.Frame(self.root)
+        self.chat_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+
+        self.history = scrolledtext.ScrolledText(self.chat_frame, state='disabled', height=20, wrap=tk.WORD)
+        self.history.pack(fill=tk.BOTH, expand=True)
+        self.all_history_lines = []
+
         self.loading_frame = ttk.Frame(self.chat_frame)
         self.loading_frame.place(relx=0.5, rely=0.5, anchor=tk.CENTER)
-
         self.progress = ttk.Progressbar(self.loading_frame, mode='indeterminate', length=200)
         self.progress.pack(pady=10)
         self.loading_label = ttk.Label(self.loading_frame, text="Загрузка компонентов...", font=('Arial', 10))
         self.loading_label.pack()
-
         self.progress.start()
 
         self.context_menu = tk.Menu(self.history, tearoff=0)
@@ -1216,6 +1237,7 @@ class AssistantGUI:
         self.input_field.bind("<Return>", self._on_enter_pressed)
         self.input_field.bind("<Shift-Return>", self._on_shift_enter)
         self.input_field.bind("<KeyRelease>", self._adjust_input_height)
+        self.input_field.config(state='disabled')
 
         self.input_context_menu = tk.Menu(self.input_field, tearoff=0)
         self.input_context_menu.add_command(label="Копировать", command=lambda: self.input_field.event_generate("<<Copy>>"))
@@ -1224,8 +1246,6 @@ class AssistantGUI:
         self.input_context_menu.add_separator()
         self.input_context_menu.add_command(label="Выделить всё", command=self._select_all_in_input)
         self.input_field.bind("<Button-3>", self._show_input_context_menu)
-
-        self.input_field.config(state='disabled')
 
         self.status_var = tk.StringVar()
         self.status_var.set("Загрузка...")
@@ -1239,21 +1259,38 @@ class AssistantGUI:
             history_callback=lambda t: self.queue.put(("history", t))
         )
 
-        self.voice_listener = None
+        # ---------- Инициализация аудио и VAD ----------
+        asr_config = self.assistant.config.get('asr', {})
+        if asr_config.get('enabled', True):
+            model_name = asr_config.get('model_name', 'gigaam-v3-e2e-ctc')
+            device = asr_config.get('device', 'cuda')
+            self.asr_recognizer = GigaAMRecognizer(model_name=model_name, device=device)
+
+            import torch
+            import numpy as np
+            self.vad_model, _ = torch.hub.load(
+                repo_or_dir='snakers4/silero-vad',
+                model='silero_vad',
+                trust_repo=True,
+                onnx=False
+            )
+            self.audio_recorder = SimpleAudioRecorder()
+            self.is_recording = False
+            self.speech_buffer = bytearray()
+            self.sample_rate = 16000
+        else:
+            self.asr_recognizer = None
+            self.vad_model = None
+            self.audio_recorder = None
+            self.is_recording = False
 
         self.init_thread = threading.Thread(target=self._background_init, daemon=True)
         self.init_thread.start()
 
     def _background_init(self):
         try:
-            self._update_status("Инициализация голосового ввода...")
-            auto_enable = self.assistant.config.get('system', {}).get('auto_enable_mic', True)
-            voice_listener = VoiceListener(self.assistant, enabled=auto_enable)
-            self.root.after(0, lambda: self._set_voice_listener(voice_listener))
-
             self._update_status("Загрузка модели эмбеддингов...")
             self.assistant.preload_embedder()
-
             self._update_status("Готов к работе")
             self.root.after(0, self._set_ready)
         except Exception as e:
@@ -1262,13 +1299,6 @@ class AssistantGUI:
 
     def _update_status(self, text):
         self.root.after(0, lambda: self.loading_label.config(text=text))
-
-    def _set_voice_listener(self, listener):
-        self.voice_listener = listener
-        self.assistant.voice_listener = listener
-        self.mic_enabled.set(listener.enabled)
-        style = "success" if listener.enabled else "danger"
-        self.mic_button.config(text=f"🎤 {'Вкл' if listener.enabled else 'Выкл'}", bootstyle=style)
 
     def _set_ready(self):
         self.ready = True
@@ -1279,6 +1309,133 @@ class AssistantGUI:
         self.status_var.set("Готов к работе")
         self.input_field.focus_set()
 
+    def toggle_microphone(self):
+        if not self.ready:
+            return
+        if not self.asr_recognizer or not self.audio_recorder:
+            self.status_var.set("ASR не настроен")
+            return
+
+        if not self.is_recording:
+            try:
+                self.audio_recorder.start()
+            except Exception as e:
+                self.status_var.set("Ошибка микрофона")
+                return
+            self.is_recording = True
+            self.mic_button.config(text="⏹️ Стоп", bootstyle="danger")
+            self.status_var.set("Слушаю... (говорите)")
+            threading.Thread(target=self._vad_loop, daemon=True).start()
+        else:
+            self._stop_mic()
+
+    def _stop_mic(self):
+        if self.is_recording:
+            self.audio_recorder.stop()
+            self.is_recording = False
+            self.mic_button.config(text="🎤 Вкл", bootstyle="success")
+            self.status_var.set("Готов к работе")
+            self.speech_buffer = bytearray()
+
+    def _vad_loop(self):
+        silence_threshold_sec = 1.0
+        frame_duration_ms = 32
+        required_silence_frames = int(silence_threshold_sec / (frame_duration_ms / 1000.0))
+        speech_active = False
+        silence_frames = 0
+
+        while self.is_recording:
+            try:
+                audio_chunk = self.audio_recorder.read_chunk()
+                if audio_chunk is None:
+                    break
+
+                audio_int16 = np.frombuffer(audio_chunk, dtype=np.int16)  # всегда 512 сэмплов
+                audio_float32 = audio_int16.astype(np.float32) / 32768.0
+                audio_tensor = torch.from_numpy(audio_float32)
+
+                with torch.no_grad():
+                    speech_prob = self.vad_model(audio_tensor, self.sample_rate).item()
+
+                if speech_prob > 0.5:
+                    if not speech_active:
+                        speech_active = True
+                        self.speech_buffer = bytearray()
+                    self.speech_buffer.extend(audio_chunk)
+                    silence_frames = 0
+                else:
+                    if speech_active:
+                        self.speech_buffer.extend(audio_chunk)
+                        silence_frames += 1
+                        if silence_frames >= required_silence_frames:
+                            audio_data = bytes(self.speech_buffer)
+                            self.root.after(0, lambda: self._process_vad_recording(audio_data))
+                            self.root.after(0, self._stop_mic)
+                            break
+                    else:
+                        pass
+                time.sleep(0.01)
+            except Exception as e:
+                print(f"❌ Ошибка в VAD цикле: {e}")
+                self.root.after(0, self._stop_mic)
+                break
+
+    def _process_vad_recording(self, audio_bytes):
+        if len(audio_bytes) > 8000:  # примерно 0.5 сек
+            text = self.asr_recognizer.recognize(audio_bytes)
+            if text:
+                threading.Thread(target=self._process_message, args=(text,), daemon=True).start()
+            else:
+                self.status_var.set("Не удалось распознать")
+        else:
+            self.status_var.set("Слишком короткая запись")
+
+    # ------------------------------------------------------------
+    #  Отправка сообщений
+    # ------------------------------------------------------------
+    def send_message(self, event=None):
+        if not self.ready:
+            return
+        user_text = self.input_field.get("1.0", "end-1c").strip()
+        if not user_text:
+            return
+        self.input_field.delete("1.0", tk.END)
+        self._adjust_input_height()
+        self.status_var.set("Думаю...")
+        self.assistant.stop_speaking()
+        threading.Thread(target=self._process_message, args=(user_text,), daemon=True).start()
+
+    def _process_message(self, user_text):
+        response, elapsed = self.assistant.process_input(user_text)
+        if not self.assistant.file_list_queue.empty():
+            self.queue.put(("file_list", self.assistant.file_list_queue.get()))
+        self.queue.put(("response", response, elapsed))
+
+    def process_queue(self):
+        try:
+            while True:
+                msg = self.queue.get_nowait()
+                if msg[0] == "history":
+                    self._add_to_history(msg[1])
+                elif msg[0] == "file_list":
+                    self._add_to_history(msg[1])
+                elif msg[0] == "status":
+                    self.status_var.set(msg[1])
+                elif msg[0] == "response":
+                    response, elapsed = msg[1], msg[2]
+                    self._add_to_history(f"      ⏱ {elapsed:.2f} сек")
+        except queue.Empty:
+            pass
+        finally:
+            self.root.after(100, self.process_queue)
+
+    def _add_to_history(self, text):
+        self.all_history_lines.append(text)
+        self._filter_history()
+
+    # ------------------------------------------------------------
+    #  Вспомогательные методы (без изменений)
+    # ------------------------------------------------------------
     def _on_enter_pressed(self, event):
         self.send_message()
         return "break"
@@ -1326,22 +1483,9 @@ class AssistantGUI:
         self.history.config(state='disabled')
         self.history.see(tk.END)
 
-    def toggle_microphone(self):
-        if not self.ready:
-            return
-        if self.voice_listener is None:
-            print("⚠️ Голосовой слушатель ещё не инициализирован")
-            return
-        self.mic_enabled.set(not self.mic_enabled.get())
-        state = "Вкл" if self.mic_enabled.get() else "Выкл"
-        style = "success" if self.mic_enabled.get() else "danger"
-        self.mic_button.config(text=f"🎤 {state}", bootstyle=style)
-        self.voice_listener.toggle()
-
     def create_tray_icon(self):
         image = Image.new('RGB', (64, 64), color='blue')
         draw = ImageDraw.Draw(image)
-        # Иконка с первой буквой имени
         name = self.assistant.config.get('system', {}).get('assistant_name', 'Ассистент')
         first_letter = name[0].upper() if name else 'А'
         draw.text((20, 10), first_letter, fill='white')
@@ -1395,46 +1539,61 @@ class AssistantGUI:
 
     def open_memory(self):
         MemoryWindow(self.root, self.assistant)
+# ------------------------------------------------------------
+#  Простой аудио-рекордер с чанками по 32 мс (512 сэмплов для 16 кГц)
+# ------------------------------------------------------------
+class SimpleAudioRecorder:
+    def __init__(self, sample_rate=16000, chunk_duration_ms=32):
+        self.sample_rate = sample_rate
+        self.frame_size = int(sample_rate * chunk_duration_ms / 1000)  # 512 сэмплов
+        self.is_recording = False
+        self.p = pyaudio.PyAudio()
+        self.stream = None
 
-    def send_message(self, event=None):
-        if not self.ready:
+    def start(self):
+        if self.is_recording:
             return
-        user_text = self.input_field.get("1.0", "end-1c").strip()
-        if not user_text:
-            return
-        self.input_field.delete("1.0", tk.END)
-        self._adjust_input_height()
-        self.status_var.set("Думаю...")
-        self.assistant.stop_speaking()
-        threading.Thread(target=self._process_message, args=(user_text,), daemon=True).start()
-
-    def _process_message(self, user_text):
-        response, elapsed = self.assistant.process_input(user_text)
-        if not self.assistant.file_list_queue.empty():
-            self.queue.put(("file_list", self.assistant.file_list_queue.get()))
-        self.queue.put(("response", response, elapsed))
-
-    def process_queue(self):
+        self.is_recording = True
         try:
-            while True:
-                msg = self.queue.get_nowait()
-                if msg[0] == "history":
-                    self._add_to_history(msg[1])
-                elif msg[0] == "file_list":
-                    self._add_to_history(msg[1])
-                elif msg[0] == "status":
-                    self.status_var.set(msg[1])
-                elif msg[0] == "response":
-                    response, elapsed = msg[1], msg[2]
-                    self._add_to_history(f"      ⏱ {elapsed:.2f} сек")
-        except queue.Empty:
-            pass
-        finally:
-            self.root.after(100, self.process_queue)
+            self.stream = self.p.open(
+                format=pyaudio.paInt16,
+                channels=1,
+                rate=self.sample_rate,
+                input=True,
+                frames_per_buffer=self.frame_size,  # важно: количество фреймов
+                stream_callback=None
+            )
+            print("🎤 Запись начата...")
+        except Exception as e:
+            print(f"❌ Ошибка открытия микрофона: {e}")
+            self.is_recording = False
+            raise
 
-    def _add_to_history(self, text):
-        self.all_history_lines.append(text)
-        self._filter_history()
+    def read_chunk(self):
+        if not self.is_recording:
+            return None
+        try:
+            data = self.stream.read(self.frame_size)  # читаем ровно 512 фреймов
+            return data
+        except Exception as e:
+            print(f"❌ Ошибка чтения аудио: {e}")
+            return None
+
+    def stop(self):
+        self.is_recording = False
+        if self.stream:
+            try:
+                self.stream.stop_stream()
+                self.stream.close()
+            except:
+                pass
+            self.stream = None
+        print("🎤 Запись остановлена")
+
+    def terminate(self):
+        self.stop()
+        self.p.terminate()
+
 # ------------------------------------------------------------
 #  Окно настроек (ttkbootstrap) – без изменений
 # ------------------------------------------------------------
@@ -1846,7 +2005,7 @@ if __name__ == "__main__":
     with open(CONFIG_FILE, "r", encoding="utf-8") as f:
         config = yaml.safe_load(f)
 
-    assistant = Assistant(config)
+    assistant = Assistant(config)  # по умолчанию api_mode=False
     gui = AssistantGUI(assistant)
 
     threading.Thread(target=assistant.preload_embedder, daemon=True).start()

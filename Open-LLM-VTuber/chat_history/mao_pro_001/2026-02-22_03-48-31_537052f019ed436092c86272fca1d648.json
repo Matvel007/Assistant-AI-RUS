@@ -1,0 +1,28 @@
+[
+  {
+    "role": "human",
+    "timestamp": "2026-02-22T03:49:12",
+    "content": "привет",
+    "name": "Human"
+  },
+  {
+    "role": "ai",
+    "timestamp": "2026-02-22T03:49:27",
+    "content": "Привет!Как дела?",
+    "name": "Mao",
+    "avatar": "mao.png"
+  },
+  {
+    "role": "human",
+    "timestamp": "2026-02-22T03:49:33",
+    "content": "как дела",
+    "name": "Human"
+  },
+  {
+    "role": "ai",
+    "timestamp": "2026-02-22T03:49:39",
+    "content": "Нормально,как у тебя?",
+    "name": "Mao",
+    "avatar": "mao.png"
+  }
+]

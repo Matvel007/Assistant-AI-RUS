@@ -1,0 +1,19 @@
+[
+  {
+    "role": "metadata",
+    "timestamp": "2026-02-22T02:01:25"
+  },
+  {
+    "role": "human",
+    "timestamp": "2026-02-22T02:01:33",
+    "content": "тебе норм ?",
+    "name": "Human"
+  },
+  {
+    "role": "ai",
+    "timestamp": "2026-02-22T02:01:43",
+    "content": "Ну,я же ИИ, у меня нет чувств, но если бы они были — то да, норм!А тебе?",
+    "name": "Mao",
+    "avatar": "mao.png"
+  }
+]

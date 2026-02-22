@@ -1,180 +1,51 @@
-# Byte-compiled / optimized / DLL files
+# Python
 __pycache__/
 *.py[cod]
-*$py.class
-
-# Virtual environments
-venv/
-env/
-ENV/
-env.bak/
-venv.bak/
-
-# Python distribution / packaging
+*.so
 .Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-share/python-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
 
-# PyInstaller
-*.manifest
-*.spec
-
-# Installer logs
-pip-log.txt
-pip-delete-this-directory.txt
-
-# Unit test / coverage reports
-htmlcov/
-.tox/
-.nox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.py,cover
-.hypothesis/
-.pytest_cache/
-cover/
-
-# Translations
-*.mo
-*.pot
-
-# Django stuff:
-*.log
-local_settings.py
-db.sqlite3
-db.sqlite3-journal
-
-# Flask stuff:
-instance/
-.webassets-cache
-
-# Scrapy stuff:
-.scrapy
-
-# Sphinx documentation
-docs/_build/
-
-# PyBuilder
-.pybuilder/
-target/
-
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# IPython
-profile_default/
-ipython_config.py
-
-# pyenv
-.python-version
-
-# pipenv
-Pipfile.lock
-
-# poetry
-poetry.lock
-
-# pdm
-.pdm.toml
-
-# PEP 582
-__pypackages__/
-
-# Celery stuff
-celerybeat-schedule
-celerybeat.pid
-
-# SageMath parsed files
-*.sage.py
-
-# Environments
-.env
-.venv
-env/
+# Виртуальное окружение
 venv/
-ENV/
-env.bak/
-venv.bak/
+.venv/
+env/
+.env/
 
-# Spyder project settings
-.spyderproject
-.spyproject
+# Модели и данные
+models/
+data/chroma_db/
+library/
+hf_cache/
+.cache/
 
-# Rope project settings
-.ropeproject
+# Логи
+*.log
+*.bak
+*.backup
 
-# mkdocs documentation
-/site
+# Node.js
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/out/
 
-# mypy
-.mypy_cache/
-.dmypy.json
-dmypy.json
-
-# Pyre type checker
-.pyre/
-
-# pytype static type analyzer
-.pytype/
-
-# Cython debug symbols
-cython_debug/
-
-# IDEs
-.vscode/
+# IDE
 .idea/
+.vscode/
 *.swp
 *.swo
-*~
 
-# Project specific
-# -----------------
+# Временные файлы сборки
+Open-LLM-VTuber/frontend/release/*/win-unpacked/resources/app/.vite
+Open-LLM-VTuber/frontend/release/*/win-unpacked/resources/app/node_modules
+Open-LLM-VTuber/frontend/release/*/win-unpacked/LICENSES.chromium.html
+Open-LLM-VTuber/frontend/release/*/win-unpacked/vk_swiftshader_icd.json
+Open-LLM-VTuber/frontend/release/*/win-unpacked/d3dcompiler_47.dll
+Open-LLM-VTuber/frontend/release/*/win-unpacked/ffmpeg.dll
+Open-LLM-VTuber/frontend/release/*/win-unpacked/libEGL.dll
+Open-LLM-VTuber/frontend/release/*/win-unpacked/libGLESv2.dll
+Open-LLM-VTuber/frontend/release/*/win-unpacked/vk_swiftshader.dll
+Open-LLM-VTuber/frontend/release/*/win-unpacked/LICENSE.electron.txt
+Open-LLM-VTuber/frontend/release/*/win-unpacked/LICENSE.snapshot.txt
+# (но само приложение open-llm-vtuber-electron.exe оставляем)
 
-# Configuration file with personal API keys – we keep it in repo with empty keys, so it's not ignored.
-# If you later want to exclude your local config with real keys, you can add config.local.yaml or use .env
-# config.yaml  <-- Эту строку мы убрали, чтобы файл отслеживался
-
-# ChromaDB data (local vector database)
-data/
-chroma_db/
-
-# HuggingFace cache (models downloaded on first run)
-.huggingface/
-.cache/huggingface/
-
-# Torch cache
-.cache/torch/
-
-# Packages for offline installation (large files, not needed in repo)
 packages/
-
-# Log files
-*.log
-
-# OS generated files
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db

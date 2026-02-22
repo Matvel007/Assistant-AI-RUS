@@ -1,0 +1,121 @@
+[
+  {
+    "role": "metadata",
+    "timestamp": "2026-02-22T15:19:48"
+  },
+  {
+    "role": "ai",
+    "timestamp": "2026-02-22T15:19:59",
+    "content": "",
+    "name": "Mao",
+    "avatar": "mao.png"
+  },
+  {
+    "role": "system",
+    "timestamp": "2026-02-22T15:19:59",
+    "content": "[Interrupted by user]"
+  },
+  {
+    "role": "ai",
+    "timestamp": "2026-02-22T15:19:59",
+    "content": "",
+    "name": "Mao",
+    "avatar": "mao.png"
+  },
+  {
+    "role": "system",
+    "timestamp": "2026-02-22T15:19:59",
+    "content": "[Interrupted by user]"
+  },
+  {
+    "role": "human",
+    "timestamp": "2026-02-22T15:20:03",
+    "content": "Сейчас подойду.",
+    "name": "Human"
+  },
+  {
+    "role": "ai",
+    "timestamp": "2026-02-22T15:20:09",
+    "content": "",
+    "name": "Mao",
+    "avatar": "mao.png"
+  },
+  {
+    "role": "system",
+    "timestamp": "2026-02-22T15:20:09",
+    "content": "[Interrupted by user]"
+  },
+  {
+    "role": "ai",
+    "timestamp": "2026-02-22T15:20:09",
+    "content": "",
+    "name": "Mao",
+    "avatar": "mao.png"
+  },
+  {
+    "role": "system",
+    "timestamp": "2026-02-22T15:20:09",
+    "content": "[Interrupted by user]"
+  },
+  {
+    "role": "ai",
+    "timestamp": "2026-02-22T15:20:09",
+    "content": "",
+    "name": "Mao",
+    "avatar": "mao.png"
+  },
+  {
+    "role": "system",
+    "timestamp": "2026-02-22T15:20:09",
+    "content": "[Interrupted by user]"
+  },
+  {
+    "role": "ai",
+    "timestamp": "2026-02-22T15:20:09",
+    "content": "",
+    "name": "Mao",
+    "avatar": "mao.png"
+  },
+  {
+    "role": "system",
+    "timestamp": "2026-02-22T15:20:09",
+    "content": "[Interrupted by user]"
+  },
+  {
+    "role": "ai",
+    "timestamp": "2026-02-22T15:20:09",
+    "content": "",
+    "name": "Mao",
+    "avatar": "mao.png"
+  },
+  {
+    "role": "system",
+    "timestamp": "2026-02-22T15:20:09",
+    "content": "[Interrupted by user]"
+  },
+  {
+    "role": "ai",
+    "timestamp": "2026-02-22T15:20:09",
+    "content": "",
+    "name": "Mao",
+    "avatar": "mao.png"
+  },
+  {
+    "role": "system",
+    "timestamp": "2026-02-22T15:20:09",
+    "content": "[Interrupted by user]"
+  },
+  {
+    "role": "human",
+    "timestamp": "2026-02-22T15:20:11",
+    "content": "Ты меня слышишь?",
+    "name": "Human"
+  },
+  {
+    "role": "ai",
+    "timestamp": "2026-02-22T15:20:21",
+    "content": "Error calling the chat endpoint: Connection error.Failed to connect to the LLM API.Check the configurations and the reachability of the LLM backend.See the logs for details.Troubleshooting with documentation: [https://open-llm-vtuber.github.io/docs/faq#%E9%81%87%E5%88%B0-error-calling-the-chat-endpoint-%E9%94%99%E8%AF%AF%E6%80%8E%E4%B9%88%E5%8A%9E]",
+    "name": "Mao",
+    "avatar": "mao.png"
+  }
+]

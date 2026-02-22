@@ -1,0 +1,19 @@
+[
+  {
+    "role": "metadata",
+    "timestamp": "2026-02-22T23:17:08"
+  },
+  {
+    "role": "human",
+    "timestamp": "2026-02-22T23:17:20",
+    "content": "Привет! Как твои дела?",
+    "name": "Human"
+  },
+  {
+    "role": "ai",
+    "timestamp": "2026-02-22T23:17:28",
+    "content": "Привет! Да нормально,вроде.А ты как?",
+    "name": "Mao",
+    "avatar": "mao.png"
+  }
+]

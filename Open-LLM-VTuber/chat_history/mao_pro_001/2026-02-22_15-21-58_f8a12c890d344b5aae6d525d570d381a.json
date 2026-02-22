@@ -1,0 +1,37 @@
+[
+  {
+    "role": "metadata",
+    "timestamp": "2026-02-22T15:21:58"
+  },
+  {
+    "role": "human",
+    "timestamp": "2026-02-22T15:23:53",
+    "content": "Ты меня слышишь?",
+    "name": "Human"
+  },
+  {
+    "role": "ai",
+    "timestamp": "2026-02-22T15:23:53",
+    "content": "",
+    "name": "Mao",
+    "avatar": "mao.png"
+  },
+  {
+    "role": "system",
+    "timestamp": "2026-02-22T15:23:53",
+    "content": "[Interrupted by user]"
+  },
+  {
+    "role": "human",
+    "timestamp": "2026-02-22T15:23:55",
+    "content": "Ау.",
+    "name": "Human"
+  },
+  {
+    "role": "ai",
+    "timestamp": "2026-02-22T15:24:06",
+    "content": "Привет!Как дела?",
+    "name": "Mao",
+    "avatar": "mao.png"
+  }
+]

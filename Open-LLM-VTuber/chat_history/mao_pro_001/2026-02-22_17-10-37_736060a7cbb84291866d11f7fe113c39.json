@@ -1,0 +1,32 @@
+[
+  {
+    "role": "metadata",
+    "timestamp": "2026-02-22T17:10:37"
+  },
+  {
+    "role": "human",
+    "timestamp": "2026-02-22T17:10:41",
+    "content": "привет",
+    "name": "Human"
+  },
+  {
+    "role": "ai",
+    "timestamp": "2026-02-22T17:10:49",
+    "content": "Привет!Как дела?",
+    "name": "Mao",
+    "avatar": "mao.png"
+  },
+  {
+    "role": "human",
+    "timestamp": "2026-02-22T17:11:01",
+    "content": "норм",
+    "name": "Human"
+  },
+  {
+    "role": "ai",
+    "timestamp": "2026-02-22T17:11:12",
+    "content": "Норм и тебе!Чё как?",
+    "name": "Mao",
+    "avatar": "mao.png"
+  }
+]

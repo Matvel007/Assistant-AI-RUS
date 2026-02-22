@@ -1,0 +1,55 @@
+[
+  {
+    "role": "metadata",
+    "timestamp": "2026-02-21T22:07:00"
+  },
+  {
+    "role": "human",
+    "timestamp": "2026-02-21T22:07:22",
+    "content": "Yeah.",
+    "name": "Human"
+  },
+  {
+    "role": "ai",
+    "timestamp": "2026-02-21T22:07:38",
+    "content": "",
+    "name": "Mao",
+    "avatar": "mao.png"
+  },
+  {
+    "role": "system",
+    "timestamp": "2026-02-21T22:07:38",
+    "content": "[Interrupted by user]"
+  },
+  {
+    "role": "human",
+    "timestamp": "2026-02-21T22:07:40",
+    "content": "They have black microphones.",
+    "name": "Human"
+  },
+  {
+    "role": "ai",
+    "timestamp": "2026-02-21T22:07:47",
+    "content": "",
+    "name": "Mao",
+    "avatar": "mao.png"
+  },
+  {
+    "role": "system",
+    "timestamp": "2026-02-21T22:07:47",
+    "content": "[Interrupted by user]"
+  },
+  {
+    "role": "human",
+    "timestamp": "2026-02-21T22:07:49",
+    "content": "Exscribe不 pictures.",
+    "name": "Human"
+  },
+  {
+    "role": "ai",
+    "timestamp": "2026-02-21T22:08:20",
+    "content": "Ты хочешь,чтобы я не описывал картинки?Или это какой-то тест?Если что-то конкретное нужно — уточни.",
+    "name": "Mao",
+    "avatar": "mao.png"
+  }
+]
