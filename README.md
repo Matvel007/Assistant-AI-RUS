@@ -122,9 +122,9 @@ python launcher.py
 Проект распространяется под лицензией MIT.
 Используемые библиотеки и модели:
 
-[Silero Models](https://github.com/snakers4/silero-models) TTS и VAD
+[Silero Models](https://github.com/snakers4/silero-models) - TTS и VAD
 
-[GigaAM](https://github.com/salute-developers/GigaAM) ASR
+[GigaAM](https://github.com/salute-developers/GigaAM) - ASR
 
 [Open-LLM-VTuber](https://github.com/Open-LLM-VTuber/Open-LLM-VTuber) – Live2D-аватар
 
