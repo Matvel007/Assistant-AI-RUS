@@ -1,4 +1,4 @@
-# 🤖 Голосовой ассистент с настраиваемым именем, заточенный под русскую речь, с аватаром (RAG, Tavily, Silero TTS, Live2D, Open-LLM-VTuber,GigaAM, API)
+# 🤖 Голосовой ассистент с настраиваемым именем, заточенный под русскую речь, с аватаром (RAG, Tavily, Silero TTS, Live2D, Open-LLM-VTuber, GigaAM, API)
 
 [![Python Version](https://img.shields.io/badge/python-3.11-blue)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
